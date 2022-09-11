@@ -1,0 +1,26 @@
+{
+  "name": "com.anghr.sequencer",
+  "version": "1.0",
+  "displayName": "Sequencer",
+  "description": "Fluent builder to create sequences of actions",
+  "category": "Tools",
+  "unity": "2021.3",
+  "dependencies": {
+  },
+  "samples": [
+    {
+      "displayName": "Demo scene",
+      "description": "Contains sample usage scene for Sequencer",
+      "path": "Samples~/Demo/"
+    }
+  ],
+  "keywords": [
+    "Sequencing"
+  ],
+  "author": {
+    "name": "Anthony Rey",
+    "email": "me@anghr.com",
+    "url": "https://github.com/ReyAnthony/Caravan"
+  },
+  "type": "library"
+}
