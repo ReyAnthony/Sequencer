@@ -1,6 +1,11 @@
  Create sequences that run asynchronously on Monobehaviors
  
  ``` c#
+public class DataContext
+{
+    public int i;
+}
+
 Action<DataContext> setToTen = (ctx) => { ctx.i = 10; Debug.Log(ctx.i); };
 Action<DataContext> increment = (ctx) => { ctx.i++; Debug.Log(ctx.i); };
 Func<DataContext, bool> AboveTwenty = (ctx) => ctx.i > 20;
