@@ -4,136 +4,139 @@ using System.Collections;
 using UnityEngine;
 using JetBrains.Annotations;
 
-
-public interface ISequence<TContext, Runner>
+namespace Sequencer
 {
-    void Run(Runner runner);
-}
-
-public struct SequenceData<TContext>
-{
-    private readonly Action<TContext> _doEvent;
-    private readonly Func<TContext, bool> _condition;
-    private readonly bool _loop;
-
-    public SequenceData(Action<TContext> doEvent, Func<TContext, bool> condition, bool loop = false)
+    public interface ISequence<TContext, Runner>
     {
-        _condition = condition;
-        _loop = loop;
-        _doEvent = doEvent;
+        void Run(Runner runner);
     }
 
-    public Func<TContext, bool> Condition => _condition;
-    public Action<TContext> DoEvent => _doEvent;
-    public bool Loop => _loop;
-}
-
-public class SequenceBuilder<TContext> where TContext : class, new()
-{
-    private class CoroutineSequence<Runner> : ISequence<TContext, Runner> where Runner : MonoBehaviour
+    public struct SequenceData<TContext>
     {
-        private readonly List<SequenceData<TContext>> _sequenceData;
-        private TContext _context;
-        private bool _firstRun;
+        private readonly Action<TContext> _doEvent;
+        private readonly Func<TContext, bool> _condition;
+        private readonly bool _loop;
 
-        public CoroutineSequence(List<SequenceData<TContext>> sequenceData)
+        public SequenceData(Action<TContext> doEvent, Func<TContext, bool> condition, bool loop = false)
         {
-            _sequenceData = sequenceData;
+            _condition = condition;
+            _loop = loop;
+            _doEvent = doEvent;
         }
 
-        public void Run(Runner runner)
-        {
-            runner.StartCoroutine(RunCoroutine());
-        }
+        public Func<TContext, bool> Condition => _condition;
+        public Action<TContext> DoEvent => _doEvent;
+        public bool Loop => _loop;
+    }
 
-        [UsedImplicitly]
-        private IEnumerator RunCoroutine()
+    public class SequenceBuilder<TContext> where TContext : class, new()
+    {
+        private class CoroutineSequence<Runner> : ISequence<TContext, Runner> where Runner : MonoBehaviour
         {
-            _context = new TContext();
+            private readonly List<SequenceData<TContext>> _sequenceData;
+            private TContext _context;
+            private bool _firstRun;
 
-            foreach (var sd in _sequenceData)
+            public CoroutineSequence(List<SequenceData<TContext>> sequenceData)
             {
-                _firstRun = true;
+                _sequenceData = sequenceData;
+            }
 
-                do
+            public void Run(Runner runner)
+            {
+                runner.StartCoroutine(RunCoroutine());
+            }
+
+            [UsedImplicitly]
+            private IEnumerator RunCoroutine()
+            {
+                _context = new TContext();
+
+                foreach (var sd in _sequenceData)
                 {
-                    if (_firstRun || sd.Loop)
+                    _firstRun = true;
+
+                    do
                     {
-                        sd.DoEvent?.Invoke(_context);
-                        _firstRun = false;
-                    }
+                        if (_firstRun || sd.Loop)
+                        {
+                            sd.DoEvent?.Invoke(_context);
+                            _firstRun = false;
+                        }
 
-                    yield return new WaitForEndOfFrame();
+                        yield return new WaitForEndOfFrame();
 
-                } while ((!sd.Condition?.Invoke(_context)) ?? false);
+                    } while ((!sd.Condition?.Invoke(_context)) ?? false);
+                }
             }
         }
+
+        private List<SequenceData<TContext>> _doEvents;
+
+        protected SequenceBuilder()
+        {
+            _doEvents = new List<SequenceData<TContext>>();
+        }
+
+        public static SequenceBuilder<TContext> Please() => new SequenceBuilder<TContext>();
+
+        public IDoBuilderAllTraits<TContext> Do(Action<TContext> doIt) => new DoBuilder<TContext>(this, _doEvents, doIt);
+        public IDoBuilderThenTrait<TContext> DoIfDebug(Action<TContext> doIt)
+        {
+    #if UNITY_EDITOR || DEBUG
+            return new DoBuilder<TContext>(this, _doEvents, doIt);
+    #else
+            return new DoBuilder<TContext>(this, _doEvents, null);
+    #endif
+        }
+        public ISequence<TContext, MonoBehaviour> ThankYou() => new CoroutineSequence<MonoBehaviour>(_doEvents);
     }
 
-    private List<SequenceData<TContext>> _doEvents;
+    public class DummyDataContext { }
+    public class SequenceBuilderNoContext : SequenceBuilder<DummyDataContext> { }
 
-    protected SequenceBuilder()
+    public interface IDoBuilderThenTrait<TContext> where TContext : class, new()
     {
-        _doEvents = new List<SequenceData<TContext>>();
+        public SequenceBuilder<TContext> Then();
     }
 
-    public static SequenceBuilder<TContext> Please() => new SequenceBuilder<TContext>();
-
-    public IDoBuilderAllTraits<TContext> Do(Action<TContext> doIt) => new DoBuilder<TContext>(this, _doEvents, doIt);
-    public IDoBuilderThenTrait<TContext> DoIfDebug(Action<TContext> doIt)
+    public interface IDoBuilderThenIfTrait<TContext> where TContext : class, new()
     {
-#if UNITY_EDITOR || DEBUG
-        return new DoBuilder<TContext>(this, _doEvents, doIt);
-#else
-        return new DoBuilder<TContext>(this, _doEvents, null);
-#endif
+        public SequenceBuilder<TContext> ThenIf(Func<TContext, bool> condition, bool loopWhileNotMet);
     }
-    public ISequence<TContext, MonoBehaviour> ThankYou() => new CoroutineSequence<MonoBehaviour>(_doEvents);
-}
 
-public class DummyDataContext { }
-public class SequenceBuilderNoContext : SequenceBuilder<DummyDataContext> { }
+    public interface IDoBuilderAllTraits<TContext> : IDoBuilderThenIfTrait<TContext>, IDoBuilderThenTrait<TContext> where TContext : class, new()
+    { 
+    }
 
-public interface IDoBuilderThenTrait<TContext> where TContext : class, new()
-{
-    public SequenceBuilder<TContext> Then();
-}
-
-public interface IDoBuilderThenIfTrait<TContext> where TContext : class, new()
-{
-    public SequenceBuilder<TContext> ThenIf(Func<TContext, bool> condition, bool loopWhileNotMet);
-}
-
-public interface IDoBuilderAllTraits<TContext> : IDoBuilderThenIfTrait<TContext>, IDoBuilderThenTrait<TContext> where TContext : class, new()
-{ 
-}
-
-public class DoBuilder<TContext> : IDoBuilderAllTraits<TContext> where TContext : class, new()
-{
-    private SequenceBuilder<TContext> _sequenceBuilder;
-    private List<SequenceData<TContext>> _doEvents;
-    private Action<TContext> _doIt;
-
-    public DoBuilder(SequenceBuilder<TContext> sequenceBuilder, List<SequenceData<TContext>> doEvents, Action<TContext> doIt)
+    public class DoBuilder<TContext> : IDoBuilderAllTraits<TContext> where TContext : class, new()
     {
-        this._sequenceBuilder = sequenceBuilder;
-        this._doEvents = doEvents;
-        this._doIt = doIt;
+        private SequenceBuilder<TContext> _sequenceBuilder;
+        private List<SequenceData<TContext>> _doEvents;
+        private Action<TContext> _doIt;
+
+        public DoBuilder(SequenceBuilder<TContext> sequenceBuilder, List<SequenceData<TContext>> doEvents, Action<TContext> doIt)
+        {
+            this._sequenceBuilder = sequenceBuilder;
+            this._doEvents = doEvents;
+            this._doIt = doIt;
+        }
+
+        public SequenceBuilder<TContext> Then()
+        {
+            if (_doIt == null) return _sequenceBuilder;
+
+            _doEvents.Add(new SequenceData<TContext>(_doIt, null));
+            return _sequenceBuilder;
+        }
+
+        public SequenceBuilder<TContext> ThenIf(Func<TContext, bool> condition, bool loopWhileNotMet)
+        {
+            if (_doIt == null) return _sequenceBuilder;
+
+            _doEvents.Add(new SequenceData<TContext>(_doIt, condition, loopWhileNotMet));
+            return _sequenceBuilder;
+        }
     }
 
-    public SequenceBuilder<TContext> Then()
-    {
-        if (_doIt == null) return _sequenceBuilder;
-
-        _doEvents.Add(new SequenceData<TContext>(_doIt, null));
-        return _sequenceBuilder;
-    }
-
-    public SequenceBuilder<TContext> ThenIf(Func<TContext, bool> condition, bool loopWhileNotMet)
-    {
-        if (_doIt == null) return _sequenceBuilder;
-
-        _doEvents.Add(new SequenceData<TContext>(_doIt, condition, loopWhileNotMet));
-        return _sequenceBuilder;
-    }
 }

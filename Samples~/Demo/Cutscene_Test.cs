@@ -1,6 +1,6 @@
 using System;
 using UnityEngine;
-
+using Sequencer;
 public class Cutscene_Test : MonoBehaviour
 {
 
