@@ -1,6 +1,6 @@
 {
   "name": "com.anghr.sequencer",
-  "version": "1.0",
+  "version": "1.0.0",
   "displayName": "Sequencer",
   "description": "Fluent builder to create sequences of actions",
   "category": "Tools",
